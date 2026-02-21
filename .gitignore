@@ -14,10 +14,6 @@ dist/
 build/
 
 # Data
-data/raw/*
-data/processed/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
 data/drift_reports/*
 *.pkl
 *.joblib
