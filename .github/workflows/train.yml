@@ -8,8 +8,8 @@ on:
       - 'scripts/**'
       - 'requirements.txt'
   schedule:
-    - cron: '0 0 * * 0'  # Tous les dimanches à minuit
-  workflow_dispatch:  # Permet le déclenchement manuel
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
 
 jobs:
   train:
@@ -41,8 +41,7 @@ jobs:
       env:
         KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
         KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-      run: |
-        python scripts/download_data.py || echo "⚠️ Data download failed, but continuing if files exist locally"
+      run: python scripts/download_data.py || echo "⚠️ Data download failed"
     
     - name: STEP 1 - Data Loader Agent
       id: data_loader
@@ -50,42 +49,21 @@ jobs:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
         echo "::group::📊 Data Loader Agent Output"
-        python scripts/run_pipeline.py --train --no-submission || exit 1
+        python scripts/run_pipeline.py --train --no-submission
         echo "::endgroup::"
     
     - name: STEP 2 - Feature Engineer Agent
       id: feature_engineer
-      env:
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
         echo "::group::📈 Feature Engineer Agent Output"
-        python -c "
-        import pandas as pd
-from pathlib import Path
-if Path('src/models/').exists():
-    print('✅ Feature engineering completed successfully')
-else:
-    print('⚠️ Feature engineering may not have completed')
-        "
+        python -c "from pathlib import Path; print('✅ Success') if Path('src/models/').exists() else print('⚠️ Missing')"
         echo "::endgroup::"
     
     - name: STEP 3 - Model Trainer Agent
       id: model_trainer
-      env:
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
         echo "::group::🤖 Model Trainer Agent Output"
-        python -c "
-import joblib
-from pathlib import Path
-model_path = Path('src/models/baseline_model.pkl')
-if model_path.exists():
-    model = joblib.load(model_path)
-    print(f'✅ Model loaded successfully: {type(model).__name__}')
-else:
-    print('❌ Model not found - training may have failed')
-    exit(1)
-        "
+        python -c "import joblib; from pathlib import Path; model_path = Path('src/models/baseline_model.pkl'); print(f'✅ Loaded: {model_path}') if model_path.exists() else exit(1)"
         echo "::endgroup::"
     
     - name: STEP 4 - Submission Agent
@@ -94,7 +72,7 @@ else:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
         echo "::group::📝 Submission Agent Output"
-        python scripts/run_pipeline.py --no-train --no-detect-drift || exit 1
+        python scripts/run_pipeline.py --no-train --no-detect-drift
         echo "::endgroup::"
     
     - name: Data Drift Detection
@@ -103,7 +81,7 @@ else:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
         echo "::group::🔍 Data Drift Detection"
-        python scripts/run_pipeline.py --detect-drift --no-train --no-submission || echo "⚠️ Drift detection failed but continuing"
+        python scripts/run_pipeline.py --detect-drift --no-train --no-submission || echo "⚠️ Drift failed"
         echo "::endgroup::"
     
     - name: Upload model artifact
@@ -112,7 +90,6 @@ else:
         name: trained-model
         path: src/models/baseline_model.pkl
         if-no-files-found: warn
-        retention-days: 30
     
     - name: Upload submission
       uses: actions/upload-artifact@v4
@@ -120,7 +97,6 @@ else:
         name: submission-file
         path: submission.csv
         if-no-files-found: warn
-        retention-days: 30
     
     - name: Upload reports
       uses: actions/upload-artifact@v4
@@ -130,13 +106,11 @@ else:
           reports/
           data/drift_reports/
         if-no-files-found: warn
-        retention-days: 30
     
     - name: Summary
       if: always()
       run: |
         echo "## 📊 Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
         echo "| 📊 Data Loader | ${{ steps.data_loader.outcome }} |" >> $GITHUB_STEP_SUMMARY
