@@ -24,34 +24,18 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai.types import Content, Part
 
-async def run_pipeline(train=True, detect_drift=False, generate_submission=True):
-    """Run the agent pipeline."""
-    
-    print("🚀 Starting March Madness Prediction Pipeline...")
+async def run_agent_separately(agent_name, agent_function, message):
+    """Run a single agent separately and return its output."""
+    print(f"\n🚀 Running {agent_name}...")
     print("="*60)
     
-    # Create agents
-    agents = []
-    if train:
-        agents.extend([
-            create_data_loader_agent(),
-            create_feature_engineer_agent(),
-            create_model_trainer_agent(),
-        ])
-    if generate_submission:
-        agents.append(create_submission_agent())
+    # Create agent
+    agent = agent_function()
     
-    # Create pipeline
-    pipeline = SequentialAgent(
-        name="MarchMadnessPipeline",
-        sub_agents=agents,
-        description="March Madness prediction pipeline"
-    )
-    
-    # Run pipeline
+    # Run agent
     session_service = InMemorySessionService()
     runner = Runner(
-        agent=pipeline,
+        agent=agent,
         app_name="march_madness",
         session_service=session_service
     )
@@ -62,34 +46,79 @@ async def run_pipeline(train=True, detect_drift=False, generate_submission=True)
         session_id="run_1"
     )
     
+    agent_output = []
     async for event in runner.run_async(
         user_id="cli_user",
         session_id=session.id,
-        new_message=Content(
-            role="user", 
-            parts=[Part(text="Run the March Madness prediction pipeline. Load data, compute features, train model, and generate submission.")]
-        )
+        new_message=Content(role="user", parts=[Part(text=message)])
     ):
         if event.is_final_response() and event.content and event.content.parts:
-            print(f"\n🤖 [{event.author}]")
+            for part in event.content.parts:
+                if hasattr(part, 'text') and part.text:
+                    print(part.text)
+                    agent_output.append(part.text)
+    
+    print("="*60)
+    return "\n".join(agent_output)
+
+async def run_pipeline(train=True, detect_drift=False, generate_submission=True):
+    """Run the agent pipeline."""
+    
+    print("🚀 Starting March Madness Prediction Pipeline...")
+    print("="*60)
+    
+    try:
+        # Step 1: Data Loader Agent
+        if train:
+            await run_agent_separately(
+                "DataLoaderAgent",
+                create_data_loader_agent,
+                "Load the March Madness competition data and give me a summary."
+            )
+            
+            # Small pause to respect API quotas
+            await asyncio.sleep(2)
+            
+            # Step 2: Feature Engineer Agent
+            await run_agent_separately(
+                "FeatureEngineerAgent",
+                create_feature_engineer_agent,
+                "Compute Elo ratings for all teams based on the loaded data."
+            )
+            
+            await asyncio.sleep(2)
+            
+            # Step 3: Model Trainer Agent
+            await run_agent_separately(
+                "ModelTrainerAgent",
+                create_model_trainer_agent,
+                "Train a prediction model using Elo differences and seed differences."
+            )
+            
+            await asyncio.sleep(2)
+        
+        # Step 4: Submission Agent
+        if generate_submission:
+            await run_agent_separately(
+                "SubmissionAgent",
+                create_submission_agent,
+                "Generate the submission file with predictions for all possible matchups."
+            )
+        
+        # Run drift detection if requested
+        if detect_drift:
+            print("\n🔍 Running data drift detection...")
             print("-"*40)
-            # Extract text from parts
-            text_parts = [part.text for part in event.content.parts if hasattr(part, 'text') and part.text]
-            if text_parts:
-                print("\n".join(text_parts))
-            else:
-                print("[No text response]")
+            drift_result = detect_data_drift()
+            print(json.dumps(drift_result, indent=2, ensure_ascii=False))
             print("="*60)
-    
-    # Run drift detection if requested
-    if detect_drift:
-        print("\n🔍 Running data drift detection...")
-        print("-"*40)
-        drift_result = detect_data_drift()
-        print(json.dumps(drift_result, indent=2, ensure_ascii=False))
-        print("="*60)
-    
-    print("\n✅ Pipeline complete!")
+        
+        print("\n✅ Pipeline complete!")
+        return 0  # Success
+        
+    except Exception as e:
+        print(f"\n❌ Pipeline failed: {e}")
+        return 1  # Failure
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run March Madness prediction pipeline')
@@ -106,8 +135,10 @@ if __name__ == '__main__':
         args.detect_drift = True
         args.no_submission = False
     
-    asyncio.run(run_pipeline(
+    exit_code = asyncio.run(run_pipeline(
         train=args.train,
         detect_drift=args.detect_drift,
         generate_submission=not args.no_submission
     ))
+    
+    sys.exit(exit_code)
