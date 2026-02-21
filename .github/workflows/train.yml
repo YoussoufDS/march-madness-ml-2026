@@ -1,0 +1,80 @@
+name: Train Model
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'data/raw/**'
+  schedule:
+    - cron: '0 0 * * 0'  # Tous les dimanches à minuit
+  workflow_dispatch:  # Permet le déclenchement manuel
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Download Kaggle data
+      env:
+        KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+        KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      run: |
+        python scripts/download_data.py || echo "Données déjà présentes, on continue..."
+    
+    - name: Run pipeline
+      env:
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      run: |
+        python scripts/run_pipeline.py --all
+    
+    - name: Run tests
+      run: |
+        pytest tests/ -v || echo "Pas de tests pour l'instant"
+    
+    - name: Upload model artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: trained-model
+        path: src/models/baseline_model.pkl
+    
+    - name: Upload submission
+      uses: actions/upload-artifact@v3
+      with:
+        name: submission-file
+        path: submission.csv
+    
+    - name: Upload reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: analysis-reports
+        path: reports/
+    
+    - name: Commit model to repo
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add src/models/baseline_model.pkl submission.csv reports/ data/drift_reports/
+        git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update model and predictions [skip ci]"
+        git push

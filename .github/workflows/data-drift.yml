@@ -1,0 +1,106 @@
+name: Data Drift Detection
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Tous les jours à minuit
+  workflow_dispatch:
+  push:
+    paths:
+      - 'data/raw/**'
+
+jobs:
+  detect-drift:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Download latest data
+      env:
+        KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+        KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      run: |
+        python scripts/download_data.py --update
+    
+    - name: Run drift detection
+      env:
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      run: |
+        python scripts/run_pipeline.py --detect-drift
+    
+    - name: Upload drift report
+      uses: actions/upload-artifact@v3
+      with:
+        name: drift-report
+        path: data/drift_reports/
+    
+    - name: Check drift results
+      id: check_drift
+      run: |
+        # Trouver le dernier rapport
+        DRIFT_FILE=$(ls -t data/drift_reports/drift_metrics_*.json 2>/dev/null | head -1)
+        if [ -f "$DRIFT_FILE" ]; then
+          DRIFT_DETECTED=$(jq -r '.drift_detected' $DRIFT_FILE)
+          NEEDS_RETRAIN=$(jq -r '.needs_retraining' $DRIFT_FILE)
+          echo "drift_detected=$DRIFT_DETECTED" >> $GITHUB_OUTPUT
+          echo "needs_retrain=$NEEDS_RETRAIN" >> $GITHUB_OUTPUT
+        else
+          echo "drift_detected=false" >> $GITHUB_OUTPUT
+          echo "needs_retrain=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create issue if drift detected
+      if: steps.check_drift.outputs.drift_detected == 'true'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const files = fs.readdirSync('data/drift_reports/');
+          const driftFile = files.find(f => f.startsWith('drift_metrics_'));
+          if (driftFile) {
+            const drift = JSON.parse(fs.readFileSync(`data/drift_reports/${driftFile}`));
+            
+            let body = '## ⚠️ Data Drift Detected\n\n';
+            body += `- **Timestamp**: ${drift.timestamp}\n`;
+            body += `- **Drifted Columns**: ${drift.drifted_columns || 0}\n\n`;
+            
+            if (drift.column_drifts) {
+              body += '### Column Drifts:\n';
+              for (const [col, metrics] of Object.entries(drift.column_drifts)) {
+                body += `- **${col}**: drift_score=${metrics.drift_score}\n`;
+              }
+            }
+            
+            if (drift.recommendations) {
+              body += '\n### Recommendations:\n';
+              drift.recommendations.forEach(rec => {
+                body += `- ${rec}\n`;
+              });
+            }
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Data Drift Detected - ${drift.timestamp}`,
+              body: body,
+              labels: ['data-drift', 'automated']
+            });
+          }
+    
+    - name: Trigger retraining if needed
+      if: steps.check_drift.outputs.needs_retrain == 'true'
+      run: |
+        curl -X POST \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          https://api.github.com/repos/${{ github.repository }}/actions/workflows/train.yml/dispatches \
+          -d '{"ref":"main"}'

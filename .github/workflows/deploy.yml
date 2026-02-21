@@ -1,0 +1,53 @@
+name: Deploy Model
+
+on:
+  workflow_run:
+    workflows: ["Train Model"]
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download model artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: trained-model
+        path: ./model
+    
+    - name: Create release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        draft: false
+        prerelease: false
+    
+    - name: Upload model to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./model/baseline_model.pkl
+        asset_name: baseline_model.pkl
+        asset_content_type: application/octet-stream
+    
+    - name: Upload submission to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: submission.csv
+        asset_name: submission.csv
+        asset_content_type: text/csv
