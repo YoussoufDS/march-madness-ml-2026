@@ -13,13 +13,19 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Download model artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4  # Changé en v4
       with:
         name: trained-model
         path: ./model
+    
+    - name: Download submission artifact
+      uses: actions/download-artifact@v4  # Changé en v4
+      with:
+        name: submission-file
+        path: ./
     
     - name: Create release
       id: create_release
@@ -48,6 +54,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: submission.csv
+        asset_path: ./submission.csv
         asset_name: submission.csv
         asset_content_type: text/csv

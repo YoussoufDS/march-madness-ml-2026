@@ -7,8 +7,8 @@ on:
       - 'src/**'
       - 'data/raw/**'
   schedule:
-    - cron: '0 0 * * 0'  # Tous les dimanches à minuit
-  workflow_dispatch:  # Permet le déclenchement manuel
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
 
 jobs:
   train:
@@ -16,20 +16,18 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4  # Version 4 aussi !
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
     
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
     
     - name: Install dependencies
       run: |
@@ -54,22 +52,25 @@ jobs:
         pytest tests/ -v || echo "Pas de tests pour l'instant"
     
     - name: Upload model artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Changé en v4
       with:
         name: trained-model
         path: src/models/baseline_model.pkl
+        retention-days: 30  # Optionnel : garder 30 jours
     
     - name: Upload submission
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Changé en v4
       with:
         name: submission-file
         path: submission.csv
+        retention-days: 30
     
     - name: Upload reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Changé en v4
       with:
         name: analysis-reports
         path: reports/
+        retention-days: 30
     
     - name: Commit model to repo
       run: |

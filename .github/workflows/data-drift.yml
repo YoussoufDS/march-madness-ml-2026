@@ -2,7 +2,7 @@ name: Data Drift Detection
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Tous les jours à minuit
+    - cron: '0 0 * * *'
   workflow_dispatch:
   push:
     paths:
@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
     
@@ -38,15 +38,15 @@ jobs:
         python scripts/run_pipeline.py --detect-drift
     
     - name: Upload drift report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Changé en v4
       with:
         name: drift-report
         path: data/drift_reports/
+        retention-days: 30
     
     - name: Check drift results
       id: check_drift
       run: |
-        # Trouver le dernier rapport
         DRIFT_FILE=$(ls -t data/drift_reports/drift_metrics_*.json 2>/dev/null | head -1)
         if [ -f "$DRIFT_FILE" ]; then
           DRIFT_DETECTED=$(jq -r '.drift_detected' $DRIFT_FILE)
@@ -60,7 +60,7 @@ jobs:
     
     - name: Create issue if drift detected
       if: steps.check_drift.outputs.drift_detected == 'true'
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
