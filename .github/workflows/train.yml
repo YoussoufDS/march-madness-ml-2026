@@ -60,7 +60,7 @@ jobs:
       run: |
         echo "::group::📈 Feature Engineer Agent Output"
         python -c "
-import pandas as pd
+        import pandas as pd
 from pathlib import Path
 if Path('src/models/').exists():
     print('✅ Feature engineering completed successfully')
