@@ -141,8 +141,8 @@ else:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔷 Data Loader | ${{ job.steps.data_loader.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔶 Feature Engineer | ${{ job.steps.feature_engineer.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔷 Model Trainer | ${{ job.steps.model_trainer.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔶 Submission | ${{ job.steps.submission.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔍 Drift Detection | ${{ job.steps.drift_detection.outcome }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🔷 Data Loader | ${{ steps.data_loader.outcome }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🔶 Feature Engineer | ${{ steps.feature_engineer.outcome }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🔷 Model Trainer | ${{ steps.model_trainer.outcome }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🔶 Submission | ${{ steps.submission.outcome }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🔍 Drift Detection | ${{ steps.drift_detection.outcome }} |" >> $GITHUB_STEP_SUMMARY

@@ -53,7 +53,7 @@ def create_data_loader_agent():
     """Create and return a Data Loader Agent."""
     return LlmAgent(
         name="DataLoaderAgent",
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash-lite",
         instruction="""You are a data loading specialist for the March Madness prediction pipeline.
 
 Your job:
