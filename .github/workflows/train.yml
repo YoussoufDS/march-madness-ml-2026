@@ -8,8 +8,8 @@ on:
       - 'scripts/**'
       - 'requirements.txt'
   schedule:
-    - cron: '0 0 * * 0'  # Tous les dimanches à minuit
-  workflow_dispatch:  # Permet le déclenchement manuel
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
 
 jobs:
   train:
@@ -29,8 +29,6 @@ jobs:
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
     
     - name: Install dependencies
       run: |
@@ -42,73 +40,71 @@ jobs:
         KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
         KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
       run: |
-        python scripts/download_data.py || echo "⚠️ Data download failed, but continuing if files exist locally"
+        python scripts/download_data.py || echo "Data download failed, but continuing if files exist locally"
     
-    - name: 🔷 STEP 1 - Data Loader Agent
+    - name: STEP 1 - Data Loader Agent
       id: data_loader
       env:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
-        echo "::group::📊 Data Loader Agent Output"
+        echo "::group::Data Loader Agent Output"
         python scripts/run_pipeline.py --train --no-submission || exit 1
         echo "::endgroup::"
     
-    - name: 🔶 STEP 2 - Feature Engineer Agent
+    - name: STEP 2 - Feature Engineer Agent
       id: feature_engineer
       env:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
-        echo "::group::📈 Feature Engineer Agent Output"
-        # Already run in step 1, but we add a small verification
+        echo "::group::Feature Engineer Agent Output"
         python -c "
 import pandas as pd
 from pathlib import Path
 if Path('src/models/').exists():
-    print('✅ Feature engineering completed successfully')
+    print('Feature engineering completed successfully')
 else:
-    print('⚠️ Feature engineering may not have completed')
+    print('Feature engineering may not have completed')
         "
         echo "::endgroup::"
     
-    - name: 🔷 STEP 3 - Model Trainer Agent
+    - name: STEP 3 - Model Trainer Agent
       id: model_trainer
       env:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
-        echo "::group::🤖 Model Trainer Agent Output"
-        # Verify model was created
+        echo "::group::Model Trainer Agent Output"
         python -c "
 import joblib
 from pathlib import Path
 model_path = Path('src/models/baseline_model.pkl')
 if model_path.exists():
     model = joblib.load(model_path)
-    print(f'✅ Model loaded successfully: {type(model).__name__}')
+    print(f'Model loaded successfully: {type(model).__name__}')
 else:
-    print('❌ Model not found - training may have failed')
+    print('Model not found - training may have failed')
     exit(1)
         "
         echo "::endgroup::"
     
-    - name: 🔶 STEP 4 - Submission Agent
+    - name: STEP 4 - Submission Agent
       id: submission
       env:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
-        echo "::group::📝 Submission Agent Output"
+        echo "::group::Submission Agent Output"
         python scripts/run_pipeline.py --no-train --no-detect-drift || exit 1
         echo "::endgroup::"
     
-    - name: 📊 Data Drift Detection
+    - name: Data Drift Detection
       id: drift_detection
       env:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
-        echo "::group::🔍 Data Drift Detection"
-        python scripts/run_pipeline.py --detect-drift --no-train --no-submission || echo "⚠️ Drift detection failed but continuing"
+        echo "::group::Data Drift Detection"
+        python scripts/run_pipeline.py --detect-drift --no-train --no-submission || echo "Drift detection failed but continuing"
         echo "::endgroup::"
     
-    - name: 📦 Upload model artifact
+    - name: Upload model artifact
       uses: actions/upload-artifact@v4
       with:
         name: trained-model
@@ -116,7 +112,7 @@ else:
         if-no-files-found: warn
         retention-days: 30
     
-    - name: 📦 Upload submission
+    - name: Upload submission
       uses: actions/upload-artifact@v4
       with:
         name: submission-file
@@ -124,7 +120,7 @@ else:
         if-no-files-found: warn
         retention-days: 30
     
-    - name: 📦 Upload reports
+    - name: Upload reports
       uses: actions/upload-artifact@v4
       with:
         name: analysis-reports
@@ -133,16 +129,3 @@ else:
           data/drift_reports/
         if-no-files-found: warn
         retention-days: 30
-    
-    - name: 📊 Summary
-      if: always()
-      run: |
-        echo "## 📊 Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔷 Data Loader | ${{ steps.data_loader.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔶 Feature Engineer | ${{ steps.feature_engineer.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔷 Model Trainer | ${{ steps.model_trainer.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔶 Submission | ${{ steps.submission.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔍 Drift Detection | ${{ steps.drift_detection.outcome }} |" >> $GITHUB_STEP_SUMMARY
