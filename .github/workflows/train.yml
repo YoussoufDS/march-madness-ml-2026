@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'scripts/**'
       - 'requirements.txt'
+      - 'data/**' # Ajouté pour déclencher si les données CSV changent
   schedule:
     - cron: '0 0 * * 0'
   workflow_dispatch:
@@ -18,7 +19,12 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-    
+      with:
+        lfs: true # <--- OBLIGATOIRE pour télécharger les fichiers CSV réels
+
+    - name: Pull LFS objects
+      run: git lfs pull # <--- Sécurité supplémentaire pour garantir le téléchargement
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
