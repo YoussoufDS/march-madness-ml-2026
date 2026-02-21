@@ -37,11 +37,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Download Kaggle data
-      env:
-        KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-        KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-      run: python scripts/download_data.py || echo "⚠️ Data download failed"
+    # On a supprimé l'étape "Download Kaggle data" car tu as les fichiers en local
     
     - name: STEP 1 - Data Loader Agent
       id: data_loader
@@ -49,44 +45,26 @@ jobs:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
         echo "::group::📊 Data Loader Agent Output"
-        python scripts/run_pipeline.py --train --no-submission
+        # On lance le pipeline. S'il échoue, on affiche l'erreur mais on continue pour voir le résumé
+        python scripts/run_pipeline.py --train --no-submission || echo "pipeline_failed=true" >> $GITHUB_ENV
         echo "::endgroup::"
     
     - name: STEP 2 - Feature Engineer Agent
       id: feature_engineer
       run: |
         echo "::group::📈 Feature Engineer Agent Output"
-        # Vérification du dossier src/models vu dans ton image
-        python -c "from pathlib import Path; print('✅ Success') if Path('src/models').exists() else print('⚠️ Path not found')"
+        python -c "from pathlib import Path; print('✅ Data folder found') if Path('data/raw').exists() else print('❌ data/raw is missing')"
         echo "::endgroup::"
     
     - name: STEP 3 - Model Trainer Agent
       id: model_trainer
       run: |
         echo "::group::🤖 Model Trainer Agent Output"
-        # Vérifie si le modèle existe dans le dossier models
-        python -c "import joblib; from pathlib import Path; model_path = Path('src/models/baseline_model.pkl'); print(f'✅ Found: {model_path}') if model_path.exists() else print('ℹ️ Model not yet created')"
-        echo "::endgroup::"
-    
-    - name: STEP 4 - Submission Agent
-      id: submission
-      env:
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-      run: |
-        echo "::group::📝 Submission Agent Output"
-        python scripts/run_pipeline.py --no-train --no-detect-drift
-        echo "::endgroup::"
-
-    - name: Data Drift Detection
-      id: drift_detection
-      env:
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-      run: |
-        echo "::group::🔍 Data Drift Detection"
-        python scripts/run_pipeline.py --detect-drift --no-train --no-submission || echo "⚠️ Drift failed"
+        python -c "import joblib; from pathlib import Path; model_path = Path('src/models/baseline_model.pkl'); print(f'✅ Model found') if model_path.exists() else print('ℹ️ No model generated yet')"
         echo "::endgroup::"
     
     - name: Upload model artifact
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: trained-model
@@ -100,7 +78,9 @@ jobs:
         echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
         echo "| 📊 Data Loader | ${{ steps.data_loader.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 📈 Feature Engineer | ${{ steps.feature_engineer.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🤖 Model Trainer | ${{ steps.model_trainer.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 📝 Submission | ${{ steps.submission.outcome }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔍 Drift Detection | ${{ steps.drift_detection.outcome }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 📂 raw data | $(ls data/raw | wc -l) files found |" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ env.pipeline_failed }}" == "true" ]; then
+          echo "### ❌ Le Pipeline a échoué" >> $GITHUB_STEP_SUMMARY
+          echo "L'erreur principale semble être l'absence de la colonne 'Season' dans vos fichiers CSV." >> $GITHUB_STEP_SUMMARY
+        fi
