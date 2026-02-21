@@ -74,7 +74,7 @@ def create_data_loader_agent():
     """Create and return a Data Loader Agent."""
     return LlmAgent(
         name="DataLoaderAgent",
-        model="gemini-2.0-flash", # Note: Gemini 2.5 n'existe pas encore, correction en 2.0
+        model="gemini-1.5-flash", # Note: Gemini 2.5 n'existe pas encore, correction en 2.0
         instruction="""You are a data loading specialist for the March Madness prediction pipeline.
 
 Your job:
