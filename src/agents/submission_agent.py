@@ -79,7 +79,7 @@ def create_submission_agent():
     """Create and return a Submission Generator Agent."""
     return LlmAgent(
         name="SubmissionAgent",
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash-lite",
         instruction="""You are a submission generation specialist for March Madness.
 
 Previous stage summary: {model_summary}

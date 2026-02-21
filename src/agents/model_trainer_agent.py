@@ -96,7 +96,7 @@ def create_model_trainer_agent():
     """Create and return a Model Trainer Agent."""
     return LlmAgent(
         name="ModelTrainerAgent",
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash-lite",
         instruction="""You are a model training specialist for March Madness.
 
 Previous stage summary: {feature_summary}

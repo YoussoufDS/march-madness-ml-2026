@@ -79,7 +79,7 @@ def create_feature_engineer_agent():
     """Create and return a Feature Engineer Agent."""
     return LlmAgent(
         name="FeatureEngineerAgent",
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash-lite",
         instruction="""You are a feature engineering specialist for March Madness.
 
 Previous stage summary: {data_summary}
